@@ -1,0 +1,28 @@
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+import pandas as pd
+import time
+import random
+import os
+
+START_URL = "https://www.amazon.com/jewelry/s?k=jewelry"
+TARGET_NEW_LINKS = 1000
+EXISTING_FILE = "amazon_handmade_jewelry_links.xlsx"
+OUTPUT_FILE = "amazon_non_handmade_jewelry_links.xlsx"
+
+existing_links = set()
+if os.path.exists(EXISTING_FILE):
+    old_df = pd.read_excel(EXISTING_FILE)
+    if "product_link" in old_df.columns:
+        existing_links = set(old_df["product_link"].dropna().astype(str).str.strip())
+
+print(f"Existing handmade jewelry links loaded: {len(existing_links)}")
+
+options = Options()
+options.add_argument("--start-maximized")
+# options.add_argument("--headless=new")
+options.add_argument("--disable-blink-features=AutomationControlled")
