@@ -26,3 +26,75 @@ options = Options()
 options.add_argument("--start-maximized")
 # options.add_argument("--headless=new")
 options.add_argument("--disable-blink-features=AutomationControlled")
+
+driver = webdriver.Chrome(options=options)
+wait = WebDriverWait(driver, 20)
+
+new_links = set()
+page_num = 1
+last_signature = None
+
+driver.get(START_URL)
+
+while len(new_links) < TARGET_NEW_LINKS:
+    try:
+        wait.until(
+            EC.presence_of_all_elements_located(
+                (By.CSS_SELECTOR, "div[data-component-type='s-search-result']")
+            )
+        )
+        time.sleep(random.uniform(2, 4))
+    except TimeoutException:
+        print("Search results did not load.")
+        break
+
+    results = driver.find_elements(By.CSS_SELECTOR, "div[data-component-type='s-search-result']")
+    page_links = set()
+
+    for r in results:
+        try:
+            a = r.find_element(By.CSS_SELECTOR, "a.a-link-normal.s-no-outline")
+            href = a.get_attribute("href")
+
+            if href and "/dp/" in href:
+                clean = href.split("?")[0].strip()
+                if clean not in existing_links and clean not in new_links:
+                    page_links.add(clean)
+        except Exception:
+            continue
+
+    signature = tuple(sorted(list(page_links))[:10])
+    if signature == last_signature:
+        print("Detected repeated page, stopping.")
+        break
+    last_signature = signature
+
+    new_links.update(page_links)
+    print(f"Page {page_num}: added {len(page_links)} new links, total new={len(new_links)}")
+
+    if len(new_links) >= TARGET_NEW_LINKS:
+        break
+
+    try:
+        next_button = driver.find_element(By.CSS_SELECTOR, "a.s-pagination-next")
+        classes = next_button.get_attribute("class") or ""
+        if "s-pagination-disabled" in classes:
+            print("No more pages.")
+            break
+
+        driver.execute_script("arguments[0].click();", next_button)
+        page_num += 1
+        time.sleep(random.uniform(2, 4))
+    except NoSuchElementException:
+        print("Next button not found.")
+        break
+    except TimeoutException:
+        print("Pagination timeout.")
+        break
+
+driver.quit()
+
+new_df = pd.DataFrame({"product_link": list(new_links)[:TARGET_NEW_LINKS]})
+new_df = new_df.drop_duplicates(subset=["product_link"]).reset_index(drop=True)
+new_df.to_excel(OUTPUT_FILE, index=False)
+print(f"Saved {len(new_df)} new links to {OUTPUT_FILE}")
